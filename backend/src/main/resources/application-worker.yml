@@ -1,0 +1,7 @@
+spring:
+  main:
+    web-application-type: none
+  task:
+    scheduling:
+      pool:
+        size: 1

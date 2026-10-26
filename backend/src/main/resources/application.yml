@@ -40,8 +40,11 @@ printair:
   max-files-per-submission: ${MAX_FILES_PER_SUBMISSION:5}
   shop-quota-bytes: ${SHOP_QUOTA_BYTES:1073741824}
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:5174}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
   storage:
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    presign-endpoint: ${S3_PRESIGN_ENDPOINT:${S3_ENDPOINT:http://localhost:9000}}
     region: ${S3_REGION:us-east-1}
     bucket: ${S3_BUCKET:printair-documents}
     access-key: ${S3_ACCESS_KEY}

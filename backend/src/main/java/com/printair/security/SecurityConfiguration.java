@@ -12,10 +12,26 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 @Configuration
 public class SecurityConfiguration {
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(
+            @org.springframework.beans.factory.annotation.Value("${printair.cors.allowed-origins}") String origins) {
+        var cors = new CorsConfiguration();
+        cors.setAllowedOrigins(java.util.Arrays.stream(origins.split(",")).map(String::trim).toList());
+        cors.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        cors.setAllowedHeaders(java.util.List.of("Content-Type", "X-XSRF-TOKEN"));
+        cors.setAllowCredentials(true);
+        var source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
+    }
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -35,11 +51,13 @@ public class SecurityConfiguration {
         csrfRepository.setCookiePath("/");
         var csrfHandler = new CsrfTokenRequestAttributeHandler();
         http
+                .cors(cors -> {})
                 .authenticationProvider(provider)
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository).csrfTokenRequestHandler(csrfHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .securityContext(context -> context.securityContextRepository(new HttpSessionSecurityContextRepository()))
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .formLogin(form -> form
                         .loginProcessingUrl("/api/auth/login")
                         .usernameParameter("email")
