@@ -1,0 +1,44 @@
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+spring:
+  application:
+    name: printair
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/printair}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:25MB}
+      max-request-size: ${MAX_REQUEST_SIZE:30MB}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+printair:
+  retention-hours: ${RETENTION_HOURS:48}
+  max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:26214400}
+  max-files-per-submission: ${MAX_FILES_PER_SUBMISSION:5}
+  shop-quota-bytes: ${SHOP_QUOTA_BYTES:1073741824}
+  public-base-url: ${PUBLIC_BASE_URL:http://localhost:5174}
+  storage:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:printair-documents}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    presign-seconds: ${S3_PRESIGN_SECONDS:300}
+    path-style: ${S3_PATH_STYLE:true}

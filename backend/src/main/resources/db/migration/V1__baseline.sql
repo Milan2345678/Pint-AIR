@@ -1,0 +1,1 @@
+-- Baseline schema intentionally contains no business tables.
