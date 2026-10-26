@@ -16,7 +16,8 @@
 
 ## Not verified / remaining risks
 - Docker daemon was unreachable (`npipe:////./pipe/dockerDesktopLinuxEngine`); PostgreSQL/MinIO integration, container builds, Compose startup, real uploads, conversion, expiration/deletion, and the load exercise were not run.
-- Cross-shop and storage deletion integration tests are present but were skipped with the other Testcontainers tests.
+- The skipped Testcontainers tests cover startup/health, unauthenticated preview/print denial, cross-shop preview denial, and verified object deletion. Additional required failure-recovery cases (storage/DB failures), cross-shop print/delete, real expiry cleanup, and actual worker conversion/timeout still need integration coverage.
+- Unit tests cover file validation, submission constraints/rate limiting, idempotent finalization, checksum calculation, and timeout handling, but do not replace the missing infrastructure-backed checks.
 - No cloud deployment, TLS, backup/restore drill, representative load test, malware scanning, or multi-instance rate limiting/reconciliation has been verified.
 - `RETENTION_HOURS=48` remains a provisional default, not an approved business commitment.
 - Rate limiting is in-memory and intended for a single backend instance; deployment behind multiple instances requires shared enforcement.
