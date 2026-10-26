@@ -1,0 +1,46 @@
+:root { color: #1c2a39; background: #f3f6f8; font-family: ui-sans-serif, system-ui, sans-serif; font-synthesis: none; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.page-wrap { max-width: 570px; margin: auto; padding: 22px 18px 28px; }
+.submit-brand { display: flex; align-items: center; gap: 10px; margin: 5px 0 22px; color: #273b4c; font-weight: 750; font-size: 15px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; color: white; background: linear-gradient(135deg, #3cbb9b, #218c76); font-size: 12px; font-weight: 800; }
+.card { background: white; border: 1px solid #e3e9ed; border-radius: 16px; padding: 26px 25px; box-shadow: 0 12px 38px #1e35410b; }
+.eyebrow { color: #62897c; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; margin: 0 0 10px; }
+h1 { font-size: clamp(22px, 6vw, 28px); line-height: 1.2; letter-spacing: -.7px; margin: 0 0 9px; color: #1a2a3b; }
+.intro { color: #74818c; font-size: 13px; line-height: 1.65; margin: 0 0 24px; }
+form { display: flex; flex-direction: column; gap: 17px; }
+form > label { display: flex; flex-direction: column; gap: 8px; color: #3a4b5e; font-size: 12px; font-weight: 700; }
+input[type="text"], input[type="name"], form > label input:not([type="file"]) { width: 100%; border: 1px solid #dce3e8; border-radius: 9px; color: #223346; padding: 12px 13px; outline: none; background: white; font-size: 13px; }
+input:focus { border-color: #38a58b; box-shadow: 0 0 0 3px #e0f4ed; }
+.file-picker { cursor: pointer; }
+.file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.picker-box { min-height: 119px; border: 1px dashed #aecac1; background: #f7fbf9; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; color: #31564d; }
+.upload-icon { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 10px; background: #e6f5ef; color: #218a72; font-size: 19px; }
+.picker-box strong { font-size: 12px; }
+.picker-box small { color: #82918b; font-size: 10px; font-weight: 400; }
+.file-list { list-style: none; padding: 0; margin: -5px 0 0; border: 1px solid #e8ecef; border-radius: 10px; overflow: hidden; }
+.file-list li { min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 12px; border-bottom: 1px solid #edf0f2; }
+.file-list li:last-child { border-bottom: 0; }
+.file-details { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.file-details strong { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #384a5d; }
+.file-details small, .progress-wrap small { color: #89949e; font-size: 10px; }
+.progress-wrap { min-width: 70px; display: flex; align-items: center; gap: 7px; }
+.progress-track { width: 45px; height: 4px; border-radius: 4px; background: #e7eeec; overflow: hidden; }
+.progress-track span { display: block; height: 100%; background: #24947b; transition: width .2s ease; }
+.sent-label { color: #16795f; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.waiting-label { color: #788591; font-size: 10px; }
+.retry-button { border: 0; background: none; color: #b34e43; font-size: 11px; font-weight: 700; padding: 3px; }
+.submit-button { width: 100%; border: 0; border-radius: 9px; min-height: 47px; background: #168b74; color: white; font-size: 13px; font-weight: 750; }
+.submit-button:hover { background: #11715e; }
+.privacy-note { display: flex; gap: 10px; border-top: 1px solid #edf0f2; padding-top: 15px; margin-top: 20px; color: #5c8a7c; }
+.privacy-note > span { font-size: 11px; padding-top: 2px; }
+.privacy-note p { margin: 0; color: #818d97; font-size: 10px; line-height: 1.55; }
+.error-message { margin: -5px 0 0; border-radius: 7px; padding: 10px; color: #a44843; background: #fff3f1; font-size: 11px; }
+.success-card { text-align: center; padding: 37px 25px; }
+.success-card p:not(.eyebrow) { color: #71808c; font-size: 13px; line-height: 1.7; }
+.success-icon { display: grid; place-items: center; width: 47px; height: 47px; margin: 0 auto 18px; border-radius: 50%; background: #e8f6ef; color: #218c6e; font-size: 24px; }
+.footer { text-align: center; color: #96a1aa; font-size: 10px; padding: 17px; }
+@media (min-width: 620px) { .page-wrap { padding-top: 44px; } .card { padding: 34px 37px; } }
