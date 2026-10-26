@@ -5,6 +5,7 @@ target/
 backend/target/
 frontend/**/node_modules/
 frontend/**/dist/
+*.tsbuildinfo
 *.log
 .idea/
 .vscode/
