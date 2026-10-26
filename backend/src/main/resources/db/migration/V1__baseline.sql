@@ -1,1 +1,1 @@
--- Baseline schema intentionally contains no business tables.
+-- Initial Flyway marker; application tables are introduced by later migrations.
