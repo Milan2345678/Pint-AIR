@@ -1,5 +1,6 @@
 package com.printair.document;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,9 +10,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Collection;
-import org.springframework.data.domain.Pageable;
 
 public interface DocumentRepository extends JpaRepository<PrintDocument, UUID> {
+    @EntityGraph(attributePaths = "submission")
     List<PrintDocument> findByShopIdAndStatusNotInAndExpiresAtAfterOrderByUploadedAtDesc(
             UUID shopId, java.util.Collection<String> statuses, Instant now);
     Optional<PrintDocument> findByIdAndShopIdAndStatusNotAndExpiresAtAfter(UUID id, UUID shopId,
@@ -20,7 +21,6 @@ public interface DocumentRepository extends JpaRepository<PrintDocument, UUID> {
     List<PrintDocument> findByStatusNotInAndExpiresAtBefore(java.util.Collection<String> statuses, Instant before);
     List<PrintDocument> findByStatusOrderByExpiresAtAsc(String status);
     Optional<PrintDocument> findByIdAndShopId(UUID id, UUID shopId);
-    long sumSizeBytesByShopIdAndExpiresAtAfterAndStatusNot(UUID shopId, Instant now, String status);
 
     @Query("select coalesce(sum(document.sizeBytes), 0) from PrintDocument document where document.shop.id = :shopId and document.expiresAt > :now and document.status <> :deleted")
     long activeBytes(@Param("shopId") UUID shopId, @Param("now") Instant now,

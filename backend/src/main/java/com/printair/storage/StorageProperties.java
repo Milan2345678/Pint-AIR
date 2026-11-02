@@ -4,6 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("printair.storage")
 public record StorageProperties(
+        String backend,
+        String rootDir,
         String endpoint,
         String presignEndpoint,
         String region,

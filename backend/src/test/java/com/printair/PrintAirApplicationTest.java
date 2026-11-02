@@ -10,21 +10,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.containers.wait.strategy.Wait;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -33,6 +29,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -42,21 +39,11 @@ class PrintAirApplicationTest {
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Container
-    static final GenericContainer<?> minio = new GenericContainer<>(
-            DockerImageName.parse("minio/minio:RELEASE.2025-04-22T22-12-26Z"))
-            .withExposedPorts(9000)
-            .withEnv("MINIO_ROOT_USER", "printair-test")
-            .withEnv("MINIO_ROOT_PASSWORD", "printair-test-password")
-            .withCommand("server", "/data")
-            .waitingFor(Wait.forHttp("/minio/health/ready").forPort(9000));
-
     @LocalServerPort
     int port;
 
     @Autowired MockMvc mockMvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired S3Client s3;
     @Autowired ObjectStorage storage;
 
     @DynamicPropertySource
@@ -64,28 +51,12 @@ class PrintAirApplicationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("printair.storage.endpoint", () -> "http://" + minio.getHost() + ":" + minio.getMappedPort(9000));
-        registry.add("printair.storage.presign-endpoint",
-                () -> "http://" + minio.getHost() + ":" + minio.getMappedPort(9000));
-        registry.add("printair.storage.region", () -> "us-east-1");
-        registry.add("printair.storage.bucket", () -> "printair-test");
-        registry.add("printair.storage.access-key", () -> "printair-test");
-        registry.add("printair.storage.secret-key", () -> "printair-test-password");
-        registry.add("printair.storage.presign-seconds", () -> "300");
-        registry.add("printair.storage.path-style", () -> "true");
+        registry.add("printair.storage.backend", () -> "local");
+        registry.add("printair.storage.root-dir", () -> System.getProperty("java.io.tmpdir") + "/printair-test-storage");
         registry.add("printair.cors.allowed-origins", () -> "http://localhost");
         registry.add("printair.public-base-url", () -> "http://localhost");
     }
 
-    @BeforeEach
-    void ensureBucket() {
-        try {
-            s3.headBucket(HeadBucketRequest.builder().bucket("printair-test").build());
-        } catch (S3Exception exception) {
-            if (exception.statusCode() != 404) throw exception;
-            s3.createBucket(CreateBucketRequest.builder().bucket("printair-test").build());
-        }
-    }
 
     @Test
     void startsAndConnectsToPostgres() {
@@ -116,13 +87,70 @@ class PrintAirApplicationTest {
     }
 
     @Test
+    void publicUploadWithValidGrantSucceedsWithoutSession() throws Exception {
+        UUID shopId = UUID.randomUUID();
+        String objectKey = "shops/" + shopId + "/uploads/valid.pdf";
+        UUID uploadId = insertUploadIntent(shopId, "valid.pdf", "application/pdf", objectKey, 8L,
+                Instant.now().plusSeconds(300));
+
+        mockMvc.perform(put("/api/public/uploads/{uploadId}/content", uploadId)
+                        .param("key", objectKey)
+                        .param("contentType", "application/pdf")
+                        .contentType("application/pdf")
+                        .content("%PDF-1.7".getBytes(StandardCharsets.UTF_8)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void invalidUploadIdIsRejected() throws Exception {
+        mockMvc.perform(put("/api/public/uploads/{uploadId}/content", UUID.randomUUID())
+                        .param("key", "shops/invalid/document.pdf")
+                        .param("contentType", "application/pdf")
+                        .contentType("application/pdf")
+                        .content("%PDF-1.7".getBytes(StandardCharsets.UTF_8))
+                        .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void expiredUploadIntentIsRejected() throws Exception {
+        UUID shopId = UUID.randomUUID();
+        String objectKey = "shops/" + shopId + "/uploads/expired.pdf";
+        UUID uploadId = insertUploadIntent(shopId, "expired.pdf", "application/pdf", objectKey, 8L,
+                Instant.now().minusSeconds(60));
+
+        mockMvc.perform(put("/api/public/uploads/{uploadId}/content", uploadId)
+                        .param("key", objectKey)
+                        .param("contentType", "application/pdf")
+                        .contentType("application/pdf")
+                        .content("%PDF-1.7".getBytes(StandardCharsets.UTF_8))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void wrongObjectKeyIsRejected() throws Exception {
+        UUID shopId = UUID.randomUUID();
+        String objectKey = "shops/" + shopId + "/uploads/valid.pdf";
+        UUID uploadId = insertUploadIntent(shopId, "valid.pdf", "application/pdf", objectKey, 8L,
+                Instant.now().plusSeconds(300));
+
+        mockMvc.perform(put("/api/public/uploads/{uploadId}/content", uploadId)
+                        .param("key", "shops/other/value.pdf")
+                        .param("contentType", "application/pdf")
+                        .contentType("application/pdf")
+                        .content("%PDF-1.7".getBytes(StandardCharsets.UTF_8))
+                        .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void deletionRemovesPrivateObjectBeforeMarkingDocumentDeleted() throws Exception {
         UUID shopId = UUID.randomUUID();
         UUID[] document = insertDocument(shopId, "READY", Instant.now().plusSeconds(3600));
         String objectKey = "shops/" + shopId + "/source/test.pdf";
-        s3.putObject(builder -> builder.bucket("printair-test").key(objectKey)
-                        .contentType("application/pdf"),
-                software.amazon.awssdk.core.sync.RequestBody.fromBytes("%PDF-1.7".getBytes()));
+        storage.put(objectKey, new ByteArrayInputStream("%PDF-1.7".getBytes(StandardCharsets.UTF_8)),
+                "application/pdf", 9L);
         jdbc.update("UPDATE documents SET source_object_key = ?, pdf_object_key = ? WHERE id = ?",
                 objectKey, objectKey, document[0]);
 
@@ -134,6 +162,22 @@ class PrintAirApplicationTest {
         assertThat(storage.exists(objectKey)).isFalse();
         assertThat(jdbc.queryForObject("SELECT status FROM documents WHERE id = ?", String.class, document[0]))
                 .isEqualTo("DELETED");
+    }
+
+    private UUID insertUploadIntent(UUID shopId, String fileName, String contentType, String objectKey,
+                                   long declaredSize, Instant expiresAt) {
+        UUID submissionId = UUID.randomUUID();
+        UUID intentId = UUID.randomUUID();
+        jdbc.update("INSERT INTO shops (id, name, slug) VALUES (?, ?, ?)", shopId, "Test shop", "shop-" + shopId);
+        jdbc.update("INSERT INTO submissions (id, shop_id, customer_name) VALUES (?, ?, ?)",
+                submissionId, shopId, "Student");
+        jdbc.update("""
+                INSERT INTO upload_intents
+                    (id, submission_id, shop_id, original_filename, content_type, declared_size, object_key, state, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, intentId, submissionId, shopId, fileName, contentType, declaredSize,
+                objectKey, "PENDING", Timestamp.from(expiresAt));
+        return intentId;
     }
 
     private UUID[] insertDocument(UUID shopId, String state, Instant expiry) {
@@ -148,7 +192,7 @@ class PrintAirApplicationTest {
                     (id, submission_id, shop_id, original_filename, content_type, declared_size, object_key, state, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, intentId, submissionId, shopId, "test.pdf", "application/pdf", 8,
-                "shops/" + shopId + "/source/test.pdf", "FINALIZED", expiry);
+                "shops/" + shopId + "/source/test.pdf", "FINALIZED", Timestamp.from(expiry));
         jdbc.update("""
                 INSERT INTO documents
                     (id, submission_id, upload_intent_id, shop_id, original_filename, content_type, size_bytes,
@@ -156,7 +200,7 @@ class PrintAirApplicationTest {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, documentId, submissionId, intentId, shopId, "test.pdf", "application/pdf", 8,
                 "0".repeat(64), "shops/" + shopId + "/source/test.pdf", "shops/" + shopId + "/source/test.pdf",
-                state, Instant.now(), expiry);
+                state, Timestamp.from(Instant.now()), Timestamp.from(expiry));
         return new UUID[] { documentId, shopId };
     }
 

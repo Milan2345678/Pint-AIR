@@ -13,3 +13,5 @@ frontend/**/dist/
 .DS_Store
 Thumbs.db
 *.class
+minio.license
+*.license

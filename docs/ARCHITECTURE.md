@@ -2,8 +2,7 @@
 
 ## Current shape
 
-The backend is a Java 21 / Spring Boot 3.5 modular monolith. PostgreSQL stores shops, one operator per shop, submission metadata, upload intents, document metadata, and conversion jobs. PDF and DOCX bytes live in a private S3-compatible bucket. The operator dashboard and customer submission site are separate React applications served by Nginx. LibreOffice runs only in the conversion-worker container.
-
+The backend is a Java 25 / Spring Boot 3.5 modular monolith. PostgreSQL stores shops, one operator per shop, submission metadata, upload intents, document metadata, and conversion jobs. PDF and DOCX bytes live in a private S3-compatible bucket. The operator dashboard and customer submission site are separate React applications served by Nginx. LibreOffice runs only in the conversion-worker container.
 ```text
 Customer browser -> submission UI -> Java API -> PostgreSQL
                                   -> short-lived PUT -> private object storage
@@ -34,7 +33,7 @@ scripts/                  Local load-test script
 
 ## Decisions made (provisional)
 
-- Spring Boot 3.5.16, Maven, PostgreSQL 16, Java 21, and React/Vite/TypeScript are selected for this first implementation.
+- Spring Boot 3.5.16, Maven, PostgreSQL 16, Java 25, and React/Vite/TypeScript are selected for this first implementation.
 - Object storage uses S3 APIs; local development uses MinIO. The actual cloud provider is not selected.
 - Retention defaults to 48 hours after a validated upload. This is provisional and requires confirmation with pilot shops; `RETENTION_HOURS` can change it.
 - The browser renders PDF pages and invokes the OS print dialog. Printing necessarily transfers rendered bytes to the browser and possibly the OS spool; there is no normal dashboard download action.

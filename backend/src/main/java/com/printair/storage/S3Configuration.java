@@ -1,5 +1,6 @@
 package com.printair.storage;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -11,6 +12,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import java.net.URI;
 
 @Configuration
+@ConditionalOnProperty(prefix = "printair.storage", name = "backend", havingValue = "s3")
 public class S3Configuration {
     @Bean
     StaticCredentialsProvider storageCredentials(StorageProperties properties) {

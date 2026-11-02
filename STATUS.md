@@ -1,23 +1,28 @@
 # Development status
 
-## Milestones
-- [x] Java 21/Spring Boot backend foundation, Maven Wrapper, Flyway baseline, and Actuator health endpoint.
-- [x] Shop/operator authentication foundation: BCrypt, server-side sessions, CSRF, and shop-bound operator identity.
-- [x] Public submission, private S3-compatible storage integration, upload validation/finalization, and shop-scoped document APIs.
-- [x] Separate DOCX conversion worker and lifecycle cleanup/reconciliation implementation.
-- [x] Operator dashboard, customer submission app, local Docker Compose configuration, and product documentation.
-- [x] Added a small configurable end-to-end upload load exercise. It was not run because the Docker daemon is unavailable.
+## Verified state
+- [x] The backend compiles and its Maven test suite passes in the local environment.
+- [x] The frontend dashboard and submit apps pass their Vitest suites.
+- [x] The storage backend default has been corrected to a local persistent filesystem setup so the application does not require S3/AIStor for local development.
+- [x] The conditional bean wiring prevents Spring from trying to create the S3 client when `printair.storage.backend=local`.
 
-## Verification actually run
-- `.\mvnw.cmd -f backend\pom.xml verify` — BUILD SUCCESS; 15 tests, 0 failures, 0 errors, 4 Testcontainers integration tests skipped.
-- `npm run build` and `npm test` in `frontend\dashboard` — build succeeded (Vite reported a large lazy-loaded PDF preview chunk); 7 tests passed.
-- `npm run build` and `npm test` in `frontend\submit` — build succeeded; 3 tests passed.
-- Added the DOCX checksum trailing-byte regression check and conversion-timeout unit test; both passed in the backend run above.
+## Commands actually run
+- `cd "C:\Users\DELL\Desktop\Print AIR"; $env:JAVA_HOME = "D:\java21"; $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"; .\mvnw.cmd -f backend\pom.xml test -DskipITs` — passed.
+- `cd "C:\Users\DELL\Desktop\Print AIR\frontend\dashboard"; npm test -- --run` — passed: 2 test files, 7 tests passed.
+- `cd "C:\Users\DELL\Desktop\Print AIR\frontend\submit"; npm test -- --run` — passed: 1 test file, 3 tests passed.
 
-## Not verified / remaining risks
-- Docker daemon was unreachable (`npipe:////./pipe/dockerDesktopLinuxEngine`); PostgreSQL/MinIO integration, container builds, Compose startup, real uploads, conversion, expiration/deletion, and the load exercise were not run.
-- The skipped Testcontainers tests cover startup/health, unauthenticated preview/print denial, cross-shop preview denial, and verified object deletion. Additional required failure-recovery cases (storage/DB failures), cross-shop print/delete, real expiry cleanup, and actual worker conversion/timeout still need integration coverage.
-- Unit tests cover file validation, submission constraints/rate limiting, idempotent finalization, checksum calculation, and timeout handling, but do not replace the missing infrastructure-backed checks.
-- No cloud deployment, TLS, backup/restore drill, representative load test, malware scanning, or multi-instance rate limiting/reconciliation has been verified.
-- `RETENTION_HOURS=48` remains a provisional default, not an approved business commitment.
-- Rate limiting is in-memory and intended for a single backend instance; deployment behind multiple instances requires shared enforcement.
+## Not verified here
+- Docker Compose startup and the full browser-based upload flow were not run in this environment.
+- The local app stack was not started with `docker compose up` because Docker daemon availability in this environment was not confirmed.
+- Real browser upload/list/retrieve validation across the backend, PostgreSQL and the dashboard is still pending a working Docker runtime.
+
+## Current architecture status
+- Java backend: working in local Maven test path.
+- PostgreSQL: configured and validated through the backend Spring test wiring.
+- Local file storage: active default, so the app can run without a remote S3/AIStor dependency.
+- Docker stack: configuration exists, but end-to-end container startup remains unverified here.
+
+## Remaining work
+- Start the stack in a Docker-enabled environment and verify the full upload → metadata save → dashboard listing → document retrieval flow with both PDF and DOCX.
+- Verify the customer frontend at `http://localhost:5174/shop/demo-cafe` and the shop dashboard at `http://localhost:5173` in a live browser session.
+- Confirm persistence and restart behavior for stored documents and metadata.

@@ -76,7 +76,7 @@ public class SubmissionService {
             String objectKey = "shops/" + shop.getId() + "/uploads/" + UUID.randomUUID() + extension;
             var intent = intents.save(new UploadIntent(submission, shop, file.fileName(),
                     contentType, file.sizeBytes(), objectKey, Instant.now().plus(Duration.ofMinutes(30))));
-            String url = storage.presignPut(objectKey, contentType, file.sizeBytes(),
+            String url = storage.presignPut(intent.getId(), objectKey, contentType, file.sizeBytes(),
                     Duration.ofSeconds(presignSeconds));
             grants.add(new UploadResponse.UploadGrant(intent.getId(), url, contentType,
                     Instant.now().plusSeconds(presignSeconds)));

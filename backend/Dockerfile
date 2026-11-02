@@ -1,16 +1,18 @@
-FROM eclipse-temurin:21-jdk-jammy AS build
+FROM eclipse-temurin:25-jdk-jammy AS build
 WORKDIR /workspace
 COPY .mvn .mvn
 COPY mvnw .
 COPY backend/pom.xml backend/pom.xml
-RUN chmod +x mvnw && ./mvnw -f backend/pom.xml -DskipTests dependency:go-offline
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw -f backend/pom.xml -DskipTests dependency:go-offline
 COPY backend backend
 RUN ./mvnw -f backend/pom.xml -DskipTests package
 
-FROM eclipse-temurin:21-jre-jammy AS runtime
+FROM eclipse-temurin:25-jre-jammy AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --create-home --shell /usr/sbin/nologin printair
+    && useradd --system --create-home --shell /usr/sbin/nologin printair \
+    && mkdir -p /var/lib/printair/storage \
+    && chown -R printair:printair /var/lib/printair
 WORKDIR /app
 COPY --from=build --chown=printair:printair /workspace/backend/target/printair-backend.jar /app/printair-backend.jar
 USER printair

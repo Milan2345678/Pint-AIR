@@ -2,7 +2,7 @@
 
 ## Local stack
 
-1. Install Java 21, Node.js 22+, and Docker Desktop.
+1. Install Java 25, Node.js 22+, and Docker Desktop.
 2. Copy `.env.example` to `.env`; replace every `REPLACE_*` value with local random values. Keep `.env` untracked.
 3. Run `docker compose up --build`.
 4. Open the operator dashboard at `http://localhost:5173` and the customer submission page at `http://localhost:5174/shop/demo-cafe`.

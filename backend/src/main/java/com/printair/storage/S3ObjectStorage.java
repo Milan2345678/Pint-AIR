@@ -1,5 +1,6 @@
 package com.printair.storage;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -12,11 +13,14 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(prefix = "printair.storage", name = "backend", havingValue = "s3")
 public class S3ObjectStorage implements ObjectStorage {
     private final S3Client s3;
     private final S3Presigner presigner;
@@ -29,11 +33,18 @@ public class S3ObjectStorage implements ObjectStorage {
     }
 
     @Override
-    public String presignPut(String key, String contentType, long contentLength, Duration validity) {
+    public String presignPut(UUID uploadId, String key, String contentType, long contentLength, Duration validity) {
         var put = PutObjectRequest.builder().bucket(properties.bucket()).key(key)
                 .contentType(contentType).contentLength(contentLength).build();
         var request = PutObjectPresignRequest.builder().signatureDuration(validity).putObjectRequest(put).build();
         return presigner.presignPutObject(request).url().toString();
+    }
+
+    @Override
+    public void put(String key, InputStream input, String contentType, long contentLength) throws IOException {
+        s3.putObject(PutObjectRequest.builder().bucket(properties.bucket()).key(key)
+                        .contentType(contentType).contentLength(contentLength).build(),
+                RequestBody.fromInputStream(input, contentLength));
     }
 
     @Override

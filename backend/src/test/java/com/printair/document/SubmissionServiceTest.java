@@ -36,7 +36,7 @@ class SubmissionServiceTest {
         when(shops.findLockedBySlug("cafe")).thenReturn(Optional.of(shop));
         when(submissions.save(any(Submission.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(intents.save(any(UploadIntent.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(storage.presignPut(any(), any(), anyLong(), any())).thenReturn("http://minio.test/upload");
+        when(storage.presignPut(any(), any(), any(), anyLong(), any())).thenReturn("http://minio.test/upload");
         service = new SubmissionService(shops, submissions, intents, documents, storage,
                 new RateLimitService(), environment);
     }
@@ -50,7 +50,7 @@ class SubmissionServiceTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
         verify(submissions, never()).save(any());
-        verify(storage, never()).presignPut(any(), any(), anyLong(), any());
+        verify(storage, never()).presignPut(any(), any(), any(), anyLong(), any());
     }
 
     @Test
@@ -61,7 +61,7 @@ class SubmissionServiceTest {
         assertThatThrownBy(() -> service.create("cafe", request.customerName(), request.files(), "127.0.0.1"))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
-        verify(storage, never()).presignPut(any(), any(), anyLong(), any());
+        verify(storage, never()).presignPut(any(), any(), any(), anyLong(), any());
     }
 
     @Test
