@@ -63,7 +63,7 @@ public class PrintDocument {
     protected PrintDocument() {
     }
 
-    public PrintDocument(UploadIntent intent, long sizeBytes, String sha256, Instant expiresAt, boolean pdf) {
+    public PrintDocument(UploadIntent intent, long sizeBytes, String sha256, Instant expiresAt) {
         this.id = UUID.randomUUID();
         this.submission = intent.getSubmission();
         this.uploadIntent = intent;
@@ -73,8 +73,11 @@ public class PrintDocument {
         this.sizeBytes = sizeBytes;
         this.sha256 = sha256;
         this.sourceObjectKey = intent.getObjectKey();
+        boolean pdf = intent.getContentType().equals("application/pdf");
+        boolean docx = intent.getContentType()
+                .equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
         this.pdfObjectKey = pdf ? intent.getObjectKey() : null;
-        this.status = pdf ? DocumentStatus.READY.name() : DocumentStatus.PENDING_CONVERSION.name();
+        this.status = docx ? DocumentStatus.PENDING_CONVERSION.name() : DocumentStatus.READY.name();
         this.uploadedAt = Instant.now();
         this.expiresAt = expiresAt;
     }

@@ -32,7 +32,11 @@ public class Submission {
     }
 
     public Submission(Shop shop, String customerName) {
-        this.id = UUID.randomUUID();
+        this(UUID.randomUUID(), shop, customerName);
+    }
+
+    public Submission(UUID id, Shop shop, String customerName) {
+        this.id = id;
         this.shop = shop;
         this.customerName = customerName;
         this.createdAt = Instant.now();

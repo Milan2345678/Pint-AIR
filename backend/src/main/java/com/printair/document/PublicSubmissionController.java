@@ -39,7 +39,12 @@ public class PublicSubmissionController {
     @PostMapping("/shops/{slug}/submissions")
     UploadResponse create(@PathVariable String slug, @Valid @RequestBody UploadRequest request,
                           HttpServletRequest servletRequest) {
-        return submissions.create(slug, request.customerName(), request.files(), servletRequest.getRemoteAddr());
+        return submissions.create(slug, request, servletRequest.getRemoteAddr());
+    }
+
+    @PostMapping("/uploads/{uploadId}/retry")
+    UploadResponse.UploadGrant retry(@PathVariable UUID uploadId) {
+        return submissions.retry(uploadId);
     }
 
     @PutMapping("/uploads/{uploadId}/content")

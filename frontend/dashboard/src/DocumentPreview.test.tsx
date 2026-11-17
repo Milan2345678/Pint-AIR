@@ -10,19 +10,17 @@ vi.mock("react-pdf", () => ({
     children: React.ReactNode; onLoadSuccess: (document: { numPages: number }) => void;
     onLoadError: (error: Error) => void;
   }) => {
-    useEffect(() => { onLoadSuccess({ numPages: 1 }); }, []);
+    useEffect(() => { onLoadSuccess({ numPages: 4 }); }, []);
     return <div data-testid="pdf-document"><button onClick={() => onLoadError(new Error("preview failed"))}>Fail preview</button>{children}</div>;
   },
-  Page: ({ onRenderSuccess }: { onRenderSuccess: () => void }) => {
-    useEffect(() => { onRenderSuccess(); }, []);
-    return <div data-testid="pdf-page" />;
-  },
+  Page: () => <div data-testid="pdf-page" />,
 }));
 
 afterEach(() => cleanup());
 
 const document: PrintDocument = {
   id: "doc-a",
+  submissionId: "submission-a",
   customerName: "Student",
   filename: "report.pdf",
   contentType: "application/pdf",
@@ -43,13 +41,89 @@ describe("document preview", () => {
     expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
   });
 
-  it("starts browser printing after the PDF pages render", async () => {
+  it("prints the original PDF stream instead of the rendered preview canvas", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => {});
     render(<DocumentPreview document={document} onDelete={vi.fn()} onRetry={vi.fn()}
       onSessionExpired={vi.fn()} />);
     const printButton = await screen.findByRole("button", { name: "Print" });
     await waitFor(() => expect(printButton).toBeEnabled());
+    expect(screen.getAllByTestId("pdf-page")).toHaveLength(1);
+
     fireEvent.click(printButton);
-    expect(print).toHaveBeenCalled();
+    const frame = await screen.findByTitle("Document print source") as HTMLIFrameElement;
+    expect(frame).toHaveAttribute("src", "/api/operator/documents/doc-a/print");
+    Object.defineProperty(frame.contentDocument!, "contentType", { configurable: true, value: "application/pdf" });
+    const framePrint = vi.spyOn(frame.contentWindow!, "print").mockImplementation(() => {});
+    fireEvent.load(frame);
+
+    expect(framePrint).toHaveBeenCalledOnce();
+    expect(print).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId("pdf-page")).toHaveLength(1);
+  });
+
+  it("prints the selected row's document when a row Print action requests it", async () => {
+    render(<DocumentPreview document={document} printRequestToken={1} onDelete={vi.fn()} onRetry={vi.fn()}
+      onSessionExpired={vi.fn()} />);
+    const frame = await screen.findByTitle("Document print source") as HTMLIFrameElement;
+    Object.defineProperty(frame.contentDocument!, "contentType", { configurable: true, value: "application/pdf" });
+    const framePrint = vi.spyOn(frame.contentWindow!, "print").mockImplementation(() => {});
+    fireEvent.load(frame);
+
+    expect(frame).toHaveAttribute("src", "/api/operator/documents/doc-a/print");
+    expect(framePrint).toHaveBeenCalledOnce();
+  });
+
+  it("uses the server-provided PDF print stream for converted DOCX documents", async () => {
+    const docx = { ...document, filename: "report.docx",
+      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    render(<DocumentPreview document={docx} onDelete={vi.fn()} onRetry={vi.fn()}
+      onSessionExpired={vi.fn()} />);
+    const printButton = await screen.findByRole("button", { name: "Print" });
+    await waitFor(() => expect(printButton).toBeEnabled());
+
+    fireEvent.click(printButton);
+
+    expect(await screen.findByTitle("Document print source")).toHaveAttribute(
+      "src", "/api/operator/documents/doc-a/print");
+  });
+
+  it("previews JPEGs and creates a page-fitted print document from the original image", async () => {
+    const jpeg = { ...document, filename: "photo.jpeg", contentType: "image/jpeg" };
+    render(<DocumentPreview document={jpeg} onDelete={vi.fn()} onRetry={vi.fn()}
+      onSessionExpired={vi.fn()} />);
+    const previewImage = await screen.findByRole("img", { name: "photo.jpeg" });
+    expect(previewImage).toHaveAttribute("src", "/api/operator/documents/doc-a/preview");
+
+    fireEvent.load(previewImage);
+    const printButton = screen.getByRole("button", { name: "Print" });
+    await waitFor(() => expect(printButton).toBeEnabled());
+    fireEvent.click(printButton);
+    const frame = await screen.findByTitle("Document print source") as HTMLIFrameElement;
+    expect(frame).not.toHaveAttribute("src");
+    const printDocument = frame.getAttribute("srcdoc")!;
+    expect(printDocument).toContain('<img src="/api/operator/documents/doc-a/print"');
+    expect(printDocument).toContain("@page { margin: 0.5in; }");
+    expect(printDocument).toContain("max-width: 100%");
+    expect(printDocument).toContain("max-height: 100%");
+    expect(printDocument).toContain("object-fit: contain");
+    expect(printDocument).toContain("image-orientation: from-image");
+    expect(printDocument).toContain("page-break-inside: avoid");
+    expect(screen.queryByTestId("pdf-page")).not.toBeInTheDocument();
+  });
+
+  it("does not print an error response returned by the print endpoint", async () => {
+    render(<DocumentPreview document={document} onDelete={vi.fn()} onRetry={vi.fn()}
+      onSessionExpired={vi.fn()} />);
+    const printButton = await screen.findByRole("button", { name: "Print" });
+    await waitFor(() => expect(printButton).toBeEnabled());
+    fireEvent.click(printButton);
+    const frame = await screen.findByTitle("Document print source");
+
+    fireEvent.load(frame);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The document could not be loaded for printing");
+    expect(screen.queryByTitle("Document print source")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
   });
 });

@@ -11,6 +11,7 @@ export default function Dashboard({ operator, onSessionExpired }: {
 }) {
   const [documents, setDocuments] = useState<PrintDocument[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [printRequest, setPrintRequest] = useState<{ documentId: string; token: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -69,6 +70,11 @@ export default function Dashboard({ operator, onSessionExpired }: {
     }
   }
 
+  function printDocument(document: PrintDocument) {
+    setSelectedId(document.id);
+    setPrintRequest((current) => ({ documentId: document.id, token: (current?.token ?? 0) + 1 }));
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -95,14 +101,20 @@ export default function Dashboard({ operator, onSessionExpired }: {
                 {documents.map((document) => <li key={document.id}>
                   <button className={`document-row ${selectedId === document.id ? "selected" : ""}`}
                     onClick={() => setSelectedId(document.id)}>
-                    <span className={`file-icon ${document.contentType === "application/pdf" ? "pdf" : "docx"}`}>
-                      {document.contentType === "application/pdf" ? "PDF" : "DOCX"}</span>
+                    <span className={`file-icon ${fileClass(document.contentType)}`}>
+                      {fileLabel(document.contentType)}</span>
                     <span className="file-info"><strong>{document.filename}</strong><span>{document.customerName} · {formatBytes(document.sizeBytes)}</span>
+                      <span>Submission {document.submissionId.slice(0, 8)} · {statusLabel(document.status)}</span>
                       <span>Expires {formatRemaining(document.expiresAt)}</span></span>
                     <span className="file-date">{new Date(document.uploadedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                   </button>
                   <div className="row-actions">
+                    <div className="row-action-group">
+                      <button className="text-button" onClick={() => setSelectedId(document.id)}>Preview</button>
+                      <button className="text-button" disabled={document.status !== "READY"}
+                        onClick={() => printDocument(document)}>Print</button>
                     {document.status === "CONVERSION_FAILED" && <button className="text-button" onClick={() => void retryConversion(document)}>Retry conversion</button>}
+                    </div>
                     <button className="text-button danger-text" onClick={() => void remove(document)}>Delete</button>
                   </div>
                 </li>)}
@@ -111,6 +123,7 @@ export default function Dashboard({ operator, onSessionExpired }: {
         <section className="preview-area" aria-label="Document preview">
           {selected ? <Suspense fallback={<div className="preview-state" role="status">Loading preview tools…</div>}>
             <DocumentPreview key={selected.id} document={selected}
+              printRequestToken={printRequest?.documentId === selected.id ? printRequest.token : undefined}
               onDelete={() => void remove(selected)} onRetry={() => void retryConversion(selected)}
               onSessionExpired={onSessionExpired} />
           </Suspense>
@@ -130,4 +143,19 @@ function formatRemaining(expiresAt: string) {
   if (hours < 1) return "in less than an hour";
   if (hours < 24) return `in ${Math.ceil(hours)}h`;
   return `in ${Math.ceil(hours / 24)}d`;
+}
+
+function fileClass(contentType: string) {
+  return contentType === "application/pdf" ? "pdf"
+    : contentType === "image/jpeg" ? "jpeg" : "docx";
+}
+
+function fileLabel(contentType: string) {
+  return contentType === "application/pdf" ? "PDF"
+    : contentType === "image/jpeg" ? "JPG" : "DOCX";
+}
+
+function statusLabel(status: PrintDocument["status"]) {
+  return status === "READY" ? "Ready"
+    : status === "CONVERSION_FAILED" ? "Conversion failed" : "Processing";
 }

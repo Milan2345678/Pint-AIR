@@ -25,10 +25,6 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
-  servlet:
-    multipart:
-      max-file-size: ${MAX_FILE_SIZE:25MB}
-      max-request-size: ${MAX_REQUEST_SIZE:30MB}
 management:
   endpoints:
     web:
@@ -41,8 +37,6 @@ management:
       show-details: never
 printair:
   retention-hours: ${RETENTION_HOURS:48}
-  max-file-size-bytes: ${MAX_FILE_SIZE_BYTES:26214400}
-  max-files-per-submission: ${MAX_FILES_PER_SUBMISSION:5}
   shop-quota-bytes: ${SHOP_QUOTA_BYTES:1073741824}
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:5174}
   cors:

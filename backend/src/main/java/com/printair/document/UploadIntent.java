@@ -59,7 +59,12 @@ public class UploadIntent {
 
     public UploadIntent(Submission submission, Shop shop, String filename, String contentType,
                         long declaredSize, String objectKey, Instant expiresAt) {
-        this.id = UUID.randomUUID();
+        this(UUID.randomUUID(), submission, shop, filename, contentType, declaredSize, objectKey, expiresAt);
+    }
+
+    public UploadIntent(UUID id, Submission submission, Shop shop, String filename, String contentType,
+                        long declaredSize, String objectKey, Instant expiresAt) {
+        this.id = id;
         this.submission = submission;
         this.shop = shop;
         this.originalFilename = filename;
@@ -82,4 +87,5 @@ public class UploadIntent {
     public Instant getExpiresAt() { return expiresAt; }
     public void setObjectKey(String objectKey) { this.objectKey = objectKey; }
     public void setState(State state) { this.state = state.name(); }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 }

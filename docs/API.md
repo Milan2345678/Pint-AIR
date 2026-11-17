@@ -14,18 +14,20 @@ The dashboard renders a QR code from the public submission URL returned by `/api
 ## Public customer submission
 
 - `POST /api/public/shops/{slug}/submissions`
-- Body: `{"customerName":"Student","files":[{"fileName":"assignment.pdf","contentType":"application/pdf","sizeBytes":12345}]}`
-- Returns one `uploadId`, short-lived PUT URL, expected content type, and expiry per file. These IDs only authorize upload finalization; they cannot list or view documents.
+- Body: `{"submissionId":"<uuid>","customerName":"Student","files":[{"uploadId":"<uuid>","fileName":"assignment.pdf","contentType":"application/pdf","sizeBytes":12345}]}`
+- The request creates one submission with one independent upload intent per file. It returns an `uploads` array containing each file's `uploadId`, short-lived PUT URL, expected content type, expiry, and internal state. Repeating the same request IDs is idempotent; they do not expose documents.
 - `PUT` each returned URL with the expected `Content-Type` and file bytes.
-- `POST /api/public/uploads/{uploadId}/finalize` after a successful PUT. Returns `{"result":"accepted"}` after validation; repeated finalize is safe.
+- `POST /api/public/uploads/{uploadId}/finalize` after a successful PUT. Each file finalizes independently and returns `{"result":"accepted"}` after validation; repeated finalize is safe.
+- `POST /api/public/uploads/{uploadId}/retry` returns a fresh upload grant for that file after an upload/finalization failure. Successfully finalized files remain finalized and are not uploaded again.
 
-Only PDF and DOCX are accepted. File limits and shop quota are enforced server-side. No customer status or tracking endpoint is provided.
+PDF, DOCX, JPG, and JPEG are accepted. There is no application-level per-file size or file-count cap. The existing configurable 1 GiB shop-wide quota, rate limits, and positive-size checks remain enforced. Provider, proxy, and deployment limits may still apply. No customer status or tracking endpoint is provided.
+The checked-in customer Nginx proxy retains its default 1 MiB request-body limit for the JSON submission declaration; document bytes are uploaded directly to the backend or object store.
 
 ## Operator document access
 
 - `GET /api/operator/documents` — current, unexpired documents for the authenticated operator's shop.
-- `GET /api/operator/documents/{id}/preview` — authorized inline PDF stream; no-store.
-- `GET /api/operator/documents/{id}/print` — same authorized inline PDF stream for browser printing.
+- `GET /api/operator/documents/{id}/preview` — authorized inline PDF or original JPEG stream; no-store. DOCX is previewed from its converted PDF.
+- `GET /api/operator/documents/{id}/print` — authorized stream for one document: the original PDF, converted DOCX PDF, or original JPEG bytes.
 - `POST /api/operator/documents/{id}/conversion/retry` — retry a failed DOCX conversion for the owning shop.
 - `DELETE /api/operator/documents/{id}` — delete the source and converted object for the owning shop.
 

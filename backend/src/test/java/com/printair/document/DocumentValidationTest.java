@@ -29,6 +29,21 @@ class DocumentValidationTest {
     }
 
     @Test
+    void acceptsAValidJpegAndRejectsBytesThatOnlyHaveTheJpegSignature() throws Exception {
+        var image = new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        var jpeg = new ByteArrayOutputStream();
+        assertThat(javax.imageio.ImageIO.write(image, "jpeg", jpeg)).isTrue();
+        var jpegBytes = jpeg.toByteArray();
+        assertThat(DocumentValidation.validateAndHash(new ByteArrayInputStream(jpegBytes), "image/jpeg"))
+                .isEqualTo(java.util.HexFormat.of().formatHex(
+                        java.security.MessageDigest.getInstance("SHA-256").digest(jpegBytes)));
+
+        assertThatThrownBy(() -> DocumentValidation.validateAndHash(
+                new ByteArrayInputStream(new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, 0, 1, 2}),
+                "image/jpeg")).isInstanceOf(DocumentValidation.InvalidDocumentException.class);
+    }
+
+    @Test
     void acceptsDocxContainerAndRejectsZipWithoutWordDocument() throws Exception {
         var validDocx = docxZip("word/document.xml");
         var withTrailer = java.util.Arrays.copyOf(validDocx, validDocx.length + 4);

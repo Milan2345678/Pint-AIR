@@ -9,8 +9,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,7 +31,10 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -66,6 +71,11 @@ class PrintAirApplicationTest {
     }
 
     @Test
+    void configuresExactlyOneSecurityFilterChain(ApplicationContext context) {
+        assertThat(context.getBeansOfType(SecurityFilterChain.class)).hasSize(1);
+    }
+
+    @Test
     void deniesUnauthenticatedPreviewAndPrint() throws Exception {
         UUID[] document = insertDocument(UUID.randomUUID(), "READY", Instant.now().plusSeconds(3600));
 
@@ -73,6 +83,24 @@ class PrintAirApplicationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/operator/documents/{id}/print", document[0]))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void printStreamsTheStoredPdfBytesUnchanged() throws Exception {
+        UUID[] document = insertDocument(UUID.randomUUID(), "READY", Instant.now().plusSeconds(3600));
+        byte[] pdfBytes = "%PDF-1.7\noriginal-pdf-content".getBytes(StandardCharsets.UTF_8);
+        String objectKey = "shops/" + document[1] + "/documents/original.pdf";
+        storage.put(objectKey, new ByteArrayInputStream(pdfBytes), "application/pdf", pdfBytes.length);
+        jdbc.update("UPDATE documents SET source_object_key = ?, pdf_object_key = ? WHERE id = ?",
+                objectKey, objectKey, document[0]);
+
+        var response = mockMvc.perform(get("/api/operator/documents/{id}/print", document[0])
+                        .with(authentication(authenticationFor(principal(document[1])))))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andReturn().getResponse();
+
+        assertThat(response.getContentAsByteArray()).containsExactly(pdfBytes);
     }
 
     @Test
@@ -84,6 +112,34 @@ class PrintAirApplicationTest {
         mockMvc.perform(get("/api/operator/documents/{id}/preview", document[0])
                         .with(authentication(authenticationFor(operator))))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createsOneSubmissionWithIndependentUploadGrantsForMultipleFiles() throws Exception {
+        UUID shopId = UUID.randomUUID();
+        UUID submissionId = UUID.randomUUID();
+        UUID pdfId = UUID.randomUUID();
+        UUID docxId = UUID.randomUUID();
+        UUID jpegId = UUID.randomUUID();
+        String slug = "shop-" + shopId;
+        jdbc.update("INSERT INTO shops (id, name, slug) VALUES (?, ?, ?)", shopId, "Test shop", slug);
+        String body = """
+                {"submissionId":"%s","customerName":"Student","files":[
+                  {"uploadId":"%s","fileName":"one.pdf","contentType":"application/pdf","sizeBytes":8},
+                  {"uploadId":"%s","fileName":"two.docx","contentType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","sizeBytes":9},
+                  {"uploadId":"%s","fileName":"three.jpeg","contentType":"image/jpeg","sizeBytes":10}
+                ]}
+                """.formatted(submissionId, pdfId, docxId, jpegId);
+
+        mockMvc.perform(post("/api/public/shops/{slug}/submissions", slug)
+                        .contentType("application/json").content(body).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploads.length()").value(3));
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM submissions WHERE id = ?", Integer.class, submissionId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM upload_intents WHERE submission_id = ?",
+                Integer.class, submissionId)).isEqualTo(3);
     }
 
     @Test

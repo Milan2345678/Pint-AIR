@@ -17,6 +17,8 @@ public interface UploadIntentRepository extends JpaRepository<UploadIntent, UUID
     @Query("select intent from UploadIntent intent where intent.id = :id")
     Optional<UploadIntent> findLockedById(@Param("id") UUID id);
 
+    List<UploadIntent> findBySubmission_Id(UUID submissionId);
+
     @Query("select coalesce(sum(intent.declaredSize), 0) from UploadIntent intent where intent.shop.id = :shopId and intent.state = 'PENDING' and intent.expiresAt > :now")
     long sumPendingBytes(@Param("shopId") UUID shopId, @Param("now") Instant now);
 

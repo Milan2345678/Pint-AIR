@@ -59,17 +59,19 @@ public class DocumentController {
         if (document.getStatus().equals(DocumentStatus.DELETING.name())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        if (!document.getStatus().equals(DocumentStatus.READY.name()) || document.getPdfObjectKey() == null) {
+        boolean jpeg = document.getContentType().equals("image/jpeg");
+        String objectKey = jpeg ? document.getSourceObjectKey() : document.getPdfObjectKey();
+        if (!document.getStatus().equals(DocumentStatus.READY.name()) || objectKey == null) {
             throw new ResponseStatusException(document.getStatus().equals(DocumentStatus.CONVERSION_FAILED.name())
                     ? HttpStatus.UNPROCESSABLE_ENTITY : HttpStatus.CONFLICT);
         }
-        response.setContentType(MediaType.APPLICATION_PDF_VALUE);
+        response.setContentType(jpeg ? "image/jpeg" : MediaType.APPLICATION_PDF_VALUE);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
                 org.springframework.http.ContentDisposition.inline()
                         .filename(document.getOriginalFilename(), java.nio.charset.StandardCharsets.UTF_8).build().toString());
         response.setHeader(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
         response.setHeader("Pragma", "no-cache");
-        try (var input = storage.open(document.getPdfObjectKey())) {
+        try (var input = storage.open(objectKey)) {
             input.transferTo(response.getOutputStream());
         }
     }

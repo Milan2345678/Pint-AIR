@@ -152,6 +152,7 @@ public class LocalObjectStorage implements ObjectStorage {
         String filename = path.getFileName().toString().toLowerCase();
         if (filename.endsWith(".pdf")) return "application/pdf";
         if (filename.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
         try {
             String contentType = Files.probeContentType(path);
             return contentType == null ? "application/octet-stream" : contentType;

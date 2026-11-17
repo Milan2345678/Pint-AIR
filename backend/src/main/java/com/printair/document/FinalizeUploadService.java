@@ -18,7 +18,6 @@ public class FinalizeUploadService {
     private final ConversionJobRepository jobs;
     private final ObjectStorage storage;
     private final long retentionHours;
-    private final long maxFileSize;
 
     public FinalizeUploadService(UploadIntentRepository intents, DocumentRepository documents,
                                  ConversionJobRepository jobs, ObjectStorage storage,
@@ -28,7 +27,6 @@ public class FinalizeUploadService {
         this.jobs = jobs;
         this.storage = storage;
         this.retentionHours = environment.getProperty("printair.retention-hours", Long.class, 48L);
-        this.maxFileSize = environment.getProperty("printair.max-file-size-bytes", Long.class, 25L * 1024 * 1024);
     }
 
     @Transactional
@@ -41,7 +39,7 @@ public class FinalizeUploadService {
             throw new ResponseStatusException(HttpStatus.GONE);
         }
         String uploadKey = intent.getObjectKey();
-        String extension = intent.getContentType().equals("application/pdf") ? ".pdf" : ".docx";
+        String extension = extensionFor(intent.getContentType());
         String documentKey = "shops/" + intent.getShop().getId() + "/documents/"
                 + intent.getId() + "/source" + extension;
         if (!storage.exists(documentKey)) {
@@ -70,12 +68,22 @@ public class FinalizeUploadService {
         }
         deleteAndVerify(uploadKey);
         intent.setObjectKey(documentKey);
-        boolean pdf = intent.getContentType().equals("application/pdf");
         var document = documents.save(new PrintDocument(intent, storedObject.contentLength(), checksum,
-                Instant.now().plus(Duration.ofHours(retentionHours)), pdf));
-        if (!pdf) jobs.save(new ConversionJob(document));
+                Instant.now().plus(Duration.ofHours(retentionHours))));
+        if (intent.getContentType().equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+            jobs.save(new ConversionJob(document));
+        }
         intent.setState(UploadIntent.State.FINALIZED);
         return true;
+    }
+
+    private String extensionFor(String contentType) {
+        return switch (contentType) {
+            case "application/pdf" -> ".pdf";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx";
+            case "image/jpeg" -> ".jpg";
+            default -> throw new IllegalArgumentException("Unsupported content type");
+        };
     }
 
     private void deleteAndVerify(String objectKey) {
@@ -86,7 +94,7 @@ public class FinalizeUploadService {
     }
 
     private boolean matchesIntent(long size, String contentType, UploadIntent intent) {
-        return size == intent.getDeclaredSize() && size <= maxFileSize
+        return size == intent.getDeclaredSize()
                 && intent.getContentType().equals(contentType);
     }
 

@@ -7,6 +7,7 @@ export type Operator = {
 
 export type PrintDocument = {
   id: string;
+  submissionId: string;
   customerName: string;
   filename: string;
   contentType: string;

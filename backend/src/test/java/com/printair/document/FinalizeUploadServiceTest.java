@@ -16,6 +16,37 @@ import static org.mockito.Mockito.*;
 
 class FinalizeUploadServiceTest {
     @Test
+    void finalizesJpegAsReadyAndDoesNotQueueDocxConversion() throws Exception {
+        var image = new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        var bytes = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "jpeg", bytes);
+        var jpeg = bytes.toByteArray();
+        var shop = new Shop("Cafe", "cafe");
+        var submission = new Submission(shop, "Student");
+        var intent = new UploadIntent(submission, shop, "photo.jpeg", "image/jpeg", jpeg.length,
+                "shops/key/photo.jpg", Instant.now().plusSeconds(300));
+        var documentKey = "shops/" + shop.getId() + "/documents/" + intent.getId() + "/source.jpg";
+        var intents = mock(UploadIntentRepository.class);
+        var documents = mock(DocumentRepository.class);
+        var jobs = mock(ConversionJobRepository.class);
+        var storage = mock(ObjectStorage.class);
+        when(intents.findLockedById(any())).thenReturn(Optional.of(intent));
+        when(storage.exists(documentKey)).thenReturn(false);
+        when(storage.inspect(any())).thenReturn(new ObjectStorage.StoredObjectInfo(jpeg.length, "image/jpeg"));
+        when(storage.open(documentKey)).thenReturn(new ByteArrayInputStream(jpeg));
+        var service = new FinalizeUploadService(intents, documents, jobs, storage, new MockEnvironment());
+
+        assertThat(service.finalizeUpload(intent.getId())).isTrue();
+
+        var saved = org.mockito.ArgumentCaptor.forClass(PrintDocument.class);
+        verify(documents).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(DocumentStatus.READY.name());
+        assertThat(saved.getValue().getSourceObjectKey()).isEqualTo(documentKey);
+        assertThat(saved.getValue().getPdfObjectKey()).isNull();
+        verify(jobs, never()).save(any(ConversionJob.class));
+    }
+
+    @Test
     void repeatedFinalizeDoesNotDuplicateDocumentOrRecheckStorage() {
         var shop = new Shop("Cafe", "cafe");
         var submission = new Submission(shop, "Student");

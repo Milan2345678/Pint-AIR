@@ -1,6 +1,6 @@
 # Print AIR
 
-Print AIR is a shop-scoped document submission and printing platform. Customers submit PDF or DOCX files without sharing a phone number; operators preview and print documents from their shop dashboard.
+Print AIR is a shop-scoped document submission and printing platform. Customers submit PDF, DOCX, JPG, or JPEG files without sharing a phone number; operators preview and print each document individually from their shop dashboard.
 
 ## Local development setup
 
@@ -43,3 +43,9 @@ npm test --prefix frontend\submit -- --run
 The default storage backend is `local` and is configured through `printair.storage.backend` and `printair.storage.root-dir` in [backend/src/main/resources/application.yml](backend/src/main/resources/application.yml). The backend writes uploaded files to the Docker volume `printair-storage` so they persist across backend restarts without requiring MinIO or AIStor.
 
 The S3 configuration remains available when a remote object store is explicitly configured by setting `STORAGE_BACKEND=s3` and providing the required S3 environment values.
+
+## Submission limits
+
+A customer can add any number of supported files to one submission. There is no application-level per-file size limit; the existing configurable 1 GiB shop-wide storage quota still applies. Storage providers, reverse proxies, and deployment infrastructure may impose their own request or object-size limits, which must be checked for each deployment. DOCX validation also retains its ZIP expansion and entry-count protections.
+
+The checked-in customer Nginx config does not override Nginx's default 1 MiB request-body limit for the submission metadata request. File bytes are uploaded directly to the local backend or configured object store, not through that Nginx proxy.
