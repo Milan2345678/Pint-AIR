@@ -79,7 +79,10 @@ public class SecurityConfiguration {
                         .authenticationEntryPoint((request, response, exception) -> response.sendError(401)))
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/actuator/health", "/api/auth/csrf", "/api/auth/login", "/api/public/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/readiness",
+                                "/api/auth/csrf", "/api/auth/login",
+                                "/api/auth/register", "/api/auth/resend-verification",
+                                "/api/auth/verify-email", "/api/public/**").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

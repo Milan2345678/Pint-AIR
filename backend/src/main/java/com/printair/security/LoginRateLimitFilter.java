@@ -20,10 +20,24 @@ public class LoginRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (request.getRequestURI().equals("/api/auth/login")
-                && !rateLimit.allow("login:" + request.getRemoteAddr(), 10, 60_000)) {
-            response.sendError(429, "Too many login attempts");
-            return;
+        String path = request.getRequestURI();
+        String action = switch (path) {
+            case "/api/auth/login" -> "login";
+            case "/api/auth/register" -> "register";
+            case "/api/auth/resend-verification" -> "resend-verification";
+            case "/api/auth/verify-email" -> "verify";
+            default -> null;
+        };
+        if (action != null) {
+            int limit = switch (action) {
+                case "login" -> 10;
+                case "verify" -> 20;
+                default -> 5;
+            };
+            if (!rateLimit.allow(action + ":" + request.getRemoteAddr(), limit, 60_000)) {
+                response.sendError(429, "Too many authentication attempts");
+                return;
+            }
         }
         chain.doFilter(request, response);
     }

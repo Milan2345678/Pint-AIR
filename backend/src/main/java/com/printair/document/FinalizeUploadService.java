@@ -1,6 +1,7 @@
 package com.printair.document;
 
 import com.printair.storage.ObjectStorage;
+import com.printair.shop.ShopRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -16,23 +17,32 @@ public class FinalizeUploadService {
     private final UploadIntentRepository intents;
     private final DocumentRepository documents;
     private final ConversionJobRepository jobs;
+    private final ShopRepository shops;
     private final ObjectStorage storage;
     private final long retentionHours;
 
     public FinalizeUploadService(UploadIntentRepository intents, DocumentRepository documents,
-                                 ConversionJobRepository jobs, ObjectStorage storage,
+                                 ConversionJobRepository jobs, ShopRepository shops, ObjectStorage storage,
                                  org.springframework.core.env.Environment environment) {
         this.intents = intents;
         this.documents = documents;
         this.jobs = jobs;
+        this.shops = shops;
         this.storage = storage;
         this.retentionHours = environment.getProperty("printair.retention-hours", Long.class, 48L);
     }
 
     @Transactional
     public boolean finalizeUpload(UUID id) {
+        var existing = intents.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        var shop = shops.findLockedBySlug(existing.getShop().getSlug())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         var intent = intents.findLockedById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!intent.getShop().getId().equals(shop.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
         if (intent.getState().equals(UploadIntent.State.FINALIZED.name())) return true;
         if (!intent.getState().equals(UploadIntent.State.PENDING.name())
                 || intent.getExpiresAt().isBefore(Instant.now())) {

@@ -15,6 +15,7 @@ function setupUploadMocks(failingContent?: string) {
   vi.stubGlobal("crypto", { randomUUID: () => `uuid-${++nextId}` });
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url === "/api/public/shops/cafe") return response({ shopName: "Paper Corner" });
     if (url === "/api/auth/csrf") return response({ token: "csrf", headerName: "X-XSRF-TOKEN" });
     if (url.endsWith("/submissions")) {
       const body = JSON.parse(String(init?.body)) as {
@@ -71,6 +72,13 @@ describe("customer submission", () => {
     expect(screen.queryByLabelText(/phone/i)).not.toBeInTheDocument();
   });
 
+  it("shows the shop name loaded from the QR destination", async () => {
+    setupUploadMocks();
+    openShop();
+
+    expect(await screen.findByRole("heading", { name: "Send files to Paper Corner" })).toBeInTheDocument();
+  });
+
   it("adds and removes files before submitting", () => {
     openShop();
     const picker = screen.getByLabelText(/Documents/);
@@ -81,21 +89,21 @@ describe("customer submission", () => {
 
     expect(screen.getByText("resume.pdf")).toBeInTheDocument();
     expect(screen.getByText("photo.jpg")).toBeInTheDocument();
-    expect(screen.getByText("PDF · 3 B")).toBeInTheDocument();
+    expect(screen.getByText("PDF, 3 B")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Remove resume.pdf" }));
     expect(screen.queryByText("resume.pdf")).not.toBeInTheDocument();
     expect(screen.getByText("photo.jpg")).toBeInTheDocument();
   });
 
   it("rejects unsupported file types before creating a submission", () => {
-    vi.stubGlobal("fetch", vi.fn());
+    const { requests } = setupUploadMocks();
     openShop();
     fireEvent.change(screen.getByLabelText(/Documents/), {
       target: { files: [new File(["image"], "photo.png", { type: "image/png" })] },
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent("PDF, DOCX, JPG, or JPEG");
-    expect(fetch).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
   });
 
   it("creates one submission for mixed files and uploads each file independently", async () => {
@@ -109,9 +117,10 @@ describe("customer submission", () => {
         new File(["jpeg"], "photo.jpeg", { type: "image/jpeg" }),
       ] },
     });
+    await screen.findByRole("heading", { name: "Send files to Paper Corner" });
     fireEvent.click(screen.getByRole("button", { name: "Submit documents" }));
 
-    expect(await screen.findByText("Your documents are on their way.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Documents submitted" })).toBeInTheDocument();
     expect(requests).toHaveLength(1);
     expect(JSON.parse(requests[0].body).files).toHaveLength(3);
     expect(uploaded).toEqual(["resume.pdf", "assignment.docx", "photo.jpeg"]);
@@ -127,6 +136,7 @@ describe("customer submission", () => {
         new File(["bad"], "failed.pdf", { type: "application/pdf" }),
       ] },
     });
+    await screen.findByRole("heading", { name: "Send files to Paper Corner" });
     fireEvent.click(screen.getByRole("button", { name: "Submit documents" }));
 
     const retryButton = await screen.findByRole("button", { name: "Retry" });

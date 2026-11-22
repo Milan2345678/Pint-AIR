@@ -73,7 +73,7 @@ export default function DocumentPreview({ document, printRequestToken, onDelete,
   return (
     <div className="preview-panel">
       <header className="preview-header">
-        <div><p className="eyebrow">DOCUMENT PREVIEW</p><h2>{document.filename}</h2><p>{document.customerName} · {formatBytes(document.sizeBytes)}</p></div>
+        <div><h2>{document.filename}</h2><p>{document.customerName}, {formatBytes(document.sizeBytes)}</p></div>
         <div className="preview-actions">
           <button className="quiet-button" onClick={onDelete}>Delete</button>
           <button className="primary-button" disabled={failure || loading || printState === "loading"}
@@ -103,7 +103,7 @@ export default function DocumentPreview({ document, printRequestToken, onDelete,
         <span>Page {page} of {pageCount}</span>
         <button className="quiet-button" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>Next</button>
       </footer>}
-      <p className="privacy-note">The original document is sent to this computer's print system. No file download is offered.</p>
+      <p className="privacy-note">The original document is sent to this computer’s print system. No file download is offered.</p>
       {printUrl && <iframe ref={printFrame} className="pdf-print-frame" title="Document print source"
         aria-hidden="true" tabIndex={-1}
         src={isJpeg ? undefined : printUrl}

@@ -42,8 +42,11 @@ public class SubmissionService {
         this.documents = documents;
         this.storage = storage;
         this.rateLimit = rateLimit;
-        this.quotaBytes = environment.getProperty("printair.shop-quota-bytes", Long.class, 1024L * 1024 * 1024);
+        this.quotaBytes = environment.getProperty("printair.shop-quota-bytes", Long.class, 1_073_741_824L);
         this.presignSeconds = environment.getProperty("printair.storage.presign-seconds", Integer.class, 300);
+        if (quotaBytes <= 0) {
+            throw new IllegalStateException("printair.shop-quota-bytes must be positive");
+        }
     }
 
     @Transactional
@@ -55,7 +58,6 @@ public class SubmissionService {
         var shop = shops.findLockedBySlug(slug)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         String customerName = request.customerName().strip();
-        long requestedBytes = 0;
         Set<UUID> uploadIds = new HashSet<>();
         Map<UUID, String> contentTypes = new HashMap<>();
         for (var file : request.files()) {
@@ -64,13 +66,9 @@ public class SubmissionService {
             }
             String contentType = validateFile(file);
             contentTypes.put(file.uploadId(), contentType);
-            try {
-                requestedBytes = Math.addExact(requestedBytes, file.sizeBytes());
-            } catch (ArithmeticException exception) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid upload size");
-            }
         }
 
+        Instant now = Instant.now();
         var existing = submissions.findById(request.submissionId());
         if (existing.isPresent()) {
             var submission = existing.get();
@@ -84,23 +82,28 @@ public class SubmissionService {
             }
             var intentsById = new HashMap<UUID, UploadIntent>();
             existingIntents.forEach(intent -> intentsById.put(intent.getId(), intent));
-            var grants = new ArrayList<UploadResponse.UploadGrant>();
+            long additionalReservationBytes = 0;
             for (var file : request.files()) {
                 var intent = intentsById.get(file.uploadId());
                 if (intent == null || !matchesRequest(intent, submission, shop, file,
                         contentTypes.get(file.uploadId()))) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Submission contents do not match");
                 }
+                if (needsReservation(intent, now)) {
+                    additionalReservationBytes = addReservationBytes(additionalReservationBytes,
+                            intent.getDeclaredSize());
+                }
+            }
+            ensureQuota(shop.getId(), now, additionalReservationBytes);
+            var grants = new ArrayList<UploadResponse.UploadGrant>();
+            for (var file : request.files()) {
+                var intent = intentsById.get(file.uploadId());
                 grants.add(issueGrant(intent));
             }
             return new UploadResponse(grants);
         }
 
-        long reserved = documents.activeBytes(shop.getId(), Instant.now(), DocumentStatus.DELETED.name())
-                + intents.sumPendingBytes(shop.getId(), Instant.now());
-        if (requestedBytes > quotaBytes || reserved > quotaBytes - requestedBytes) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Shop storage quota reached");
-        }
+        ensureQuota(shop.getId(), now, requestedBytes(request.files()));
         var submission = submissions.save(new Submission(request.submissionId(), shop, customerName));
         var grants = new ArrayList<UploadResponse.UploadGrant>();
         for (var file : request.files()) {
@@ -115,9 +118,49 @@ public class SubmissionService {
 
     @Transactional
     public UploadResponse.UploadGrant retry(UUID uploadId) {
+        var existing = intents.findById(uploadId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        var shop = shops.findLockedBySlug(existing.getShop().getSlug())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         var intent = intents.findLockedById(uploadId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Instant now = Instant.now();
+        if (needsReservation(intent, now)) {
+            ensureQuota(shop.getId(), now, intent.getDeclaredSize());
+        }
         return issueGrant(intent);
+    }
+
+    private long requestedBytes(java.util.List<UploadRequest.FileRequest> files) {
+        long total = 0;
+        for (var file : files) {
+            total = addReservationBytes(total, file.sizeBytes());
+        }
+        return total;
+    }
+
+    private long addReservationBytes(long total, long additional) {
+        try {
+            return Math.addExact(total, additional);
+        } catch (ArithmeticException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid upload size");
+        }
+    }
+
+    private void ensureQuota(UUID shopId, Instant now, long additionalBytes) {
+        long activeBytes = documents.activeBytes(shopId, now, DocumentStatus.DELETED.name());
+        long pendingBytes = intents.sumPendingBytes(shopId, now);
+        if (additionalBytes > quotaBytes
+                || activeBytes > quotaBytes - additionalBytes
+                || pendingBytes > quotaBytes - additionalBytes - activeBytes) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Shop storage quota reached");
+        }
+    }
+
+    private boolean needsReservation(UploadIntent intent, Instant now) {
+        return !intent.getState().equals(UploadIntent.State.FINALIZED.name())
+                && (!intent.getState().equals(UploadIntent.State.PENDING.name())
+                || !intent.getExpiresAt().isAfter(now));
     }
 
     private String validateFile(UploadRequest.FileRequest file) {

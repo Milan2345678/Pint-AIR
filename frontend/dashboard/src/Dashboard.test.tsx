@@ -43,4 +43,23 @@ describe("Shop Desk document actions", () => {
     expect(await screen.findByTestId("selected-document")).toHaveAttribute("data-document-id", "doc-a");
     expect(screen.getByTestId("selected-document")).toHaveAttribute("data-print-token", "2");
   });
+
+  it("shows QR actions for the operator's own submission address", async () => {
+    const submissionUrl = "http://localhost:5174/shop/cafe";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([])));
+    render(<Dashboard operator={{
+      email: "operator@example.test",
+      shopName: "Cafe",
+      shopSlug: "cafe",
+      submissionUrl,
+    }} onSessionExpired={vi.fn()} />);
+
+    await screen.findByText("No documents yet");
+    fireEvent.click(screen.getByRole("button", { name: "Shop QR" }));
+
+    expect(screen.getByRole("img", { name: "Submission QR code for Cafe" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: submissionUrl })).toHaveAttribute("href", submissionUrl);
+    expect(screen.getByRole("button", { name: "Download QR" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print QR" })).toBeInTheDocument();
+  });
 });

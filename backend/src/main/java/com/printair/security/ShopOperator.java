@@ -10,6 +10,7 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -38,13 +39,19 @@ public class ShopOperator {
     }
 
     public ShopOperator(Shop shop, String email, String passwordHash) {
+        this(shop, email, passwordHash, true);
+    }
+
+    public ShopOperator(Shop shop, String email, String passwordHash, boolean enabled) {
         this.id = UUID.randomUUID();
         this.shop = shop;
-        this.email = email.toLowerCase();
+        this.email = email.toLowerCase(Locale.ROOT);
         this.passwordHash = passwordHash;
-        this.enabled = true;
+        this.enabled = enabled;
         this.createdAt = Instant.now();
     }
+
+    public void enable() { this.enabled = true; }
 
     public UUID getId() { return id; }
     public Shop getShop() { return shop; }

@@ -1,6 +1,7 @@
 package com.printair.document;
 
 import com.printair.shop.Shop;
+import com.printair.shop.ShopRepository;
 import com.printair.storage.ObjectStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -15,6 +16,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class FinalizeUploadServiceTest {
+    private final ShopRepository shops = mock(ShopRepository.class);
+
     @Test
     void finalizesJpegAsReadyAndDoesNotQueueDocxConversion() throws Exception {
         var image = new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
@@ -34,7 +37,7 @@ class FinalizeUploadServiceTest {
         when(storage.exists(documentKey)).thenReturn(false);
         when(storage.inspect(any())).thenReturn(new ObjectStorage.StoredObjectInfo(jpeg.length, "image/jpeg"));
         when(storage.open(documentKey)).thenReturn(new ByteArrayInputStream(jpeg));
-        var service = new FinalizeUploadService(intents, documents, jobs, storage, new MockEnvironment());
+        var service = service(shop, intent, intents, documents, jobs, storage);
 
         assertThat(service.finalizeUpload(intent.getId())).isTrue();
 
@@ -62,10 +65,10 @@ class FinalizeUploadServiceTest {
         when(storage.inspect(any())).thenReturn(new ObjectStorage.StoredObjectInfo(9, "application/pdf"));
         when(storage.open(documentKey)).thenReturn(
                 new ByteArrayInputStream("%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
-        var service = new FinalizeUploadService(intents, documents, jobs, storage, new MockEnvironment());
+        var service = service(shop, intent, intents, documents, jobs, storage);
 
-        assertThat(service.finalizeUpload(UUID.randomUUID())).isTrue();
-        assertThat(service.finalizeUpload(UUID.randomUUID())).isTrue();
+        assertThat(service.finalizeUpload(intent.getId())).isTrue();
+        assertThat(service.finalizeUpload(intent.getId())).isTrue();
 
         verify(storage, times(1)).copy("shops/key/file.pdf",
                 documentKey);
@@ -92,11 +95,36 @@ class FinalizeUploadServiceTest {
                 new ObjectStorage.StoredObjectInfo(9, "application/pdf"));
         when(storage.open(documentKey)).thenReturn(
                 new ByteArrayInputStream("not-pdf!!".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
-        var service = new FinalizeUploadService(intents, documents, jobs, storage, new MockEnvironment());
+        var service = service(shop, intent, intents, documents, jobs, storage);
 
-        assertThat(service.finalizeUpload(UUID.randomUUID())).isFalse();
+        assertThat(service.finalizeUpload(intent.getId())).isFalse();
 
         verify(storage).delete("shops/key/spoofed.pdf");
+        verify(documents, never()).save(any());
+    }
+
+    @Test
+    void rejectsAndDeletesUploadWhoseActualSizeExceedsItsReservation() {
+        var shop = new Shop("Cafe", "cafe");
+        var submission = new Submission(shop, "Student");
+        var intent = new UploadIntent(submission, shop, "report.pdf", "application/pdf", 9,
+                "shops/key/report.pdf", Instant.now().plusSeconds(300));
+        var documentKey = "shops/" + shop.getId() + "/documents/" + intent.getId() + "/source.pdf";
+        var intents = mock(UploadIntentRepository.class);
+        var documents = mock(DocumentRepository.class);
+        var jobs = mock(ConversionJobRepository.class);
+        var storage = mock(ObjectStorage.class);
+        when(intents.findLockedById(any())).thenReturn(Optional.of(intent));
+        when(storage.exists(documentKey)).thenReturn(false);
+        when(storage.exists("shops/key/report.pdf")).thenReturn(false);
+        when(storage.inspect("shops/key/report.pdf")).thenReturn(
+                new ObjectStorage.StoredObjectInfo(10, "application/pdf"));
+        var service = service(shop, intent, intents, documents, jobs, storage);
+
+        assertThat(service.finalizeUpload(intent.getId())).isFalse();
+
+        verify(storage).delete("shops/key/report.pdf");
+        verify(storage, never()).copy(any(), any());
         verify(documents, never()).save(any());
     }
 
@@ -116,11 +144,19 @@ class FinalizeUploadServiceTest {
         when(storage.inspect(documentKey)).thenReturn(new ObjectStorage.StoredObjectInfo(9, "application/pdf"));
         when(storage.open(documentKey)).thenReturn(
                 new ByteArrayInputStream("%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
-        var service = new FinalizeUploadService(intents, documents, jobs, storage, new MockEnvironment());
+        var service = service(shop, intent, intents, documents, jobs, storage);
 
-        assertThat(service.finalizeUpload(UUID.randomUUID())).isTrue();
+        assertThat(service.finalizeUpload(intent.getId())).isTrue();
         verify(storage, never()).inspect("shops/key/file.pdf");
         verify(storage, never()).copy(any(), any());
         assertThat(intent.getObjectKey()).isEqualTo(documentKey);
+    }
+
+    private FinalizeUploadService service(Shop shop, UploadIntent intent, UploadIntentRepository intents,
+                                          DocumentRepository documents, ConversionJobRepository jobs,
+                                          ObjectStorage storage) {
+        when(shops.findLockedBySlug(shop.getSlug())).thenReturn(Optional.of(shop));
+        when(intents.findById(intent.getId())).thenReturn(Optional.of(intent));
+        return new FinalizeUploadService(intents, documents, jobs, shops, storage, new MockEnvironment());
     }
 }

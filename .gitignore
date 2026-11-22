@@ -15,3 +15,4 @@ Thumbs.db
 *.class
 minio.license
 *.license
+/.hallmark/

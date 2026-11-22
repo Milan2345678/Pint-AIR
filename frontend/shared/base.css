@@ -1,0 +1,47 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Furrow (adapted to existing Print AIR teal) · redesign: full
+ * nav: existing shop header · signature: document queue with live preview · states: loading, empty, error, ready
+ * axes: light/system-sans/warm · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: H, keep a single queue and preview without adding status widgets */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+html { min-height: 100%; scrollbar-color: var(--color-field-edge) var(--color-paper-3); }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  caret-color: var(--color-accent);
+}
+::selection { background: var(--color-accent-soft); color: var(--color-ink); }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
+a { color: inherit; text-underline-offset: 0.18em; }
+h1, h2, h3 { margin: 0; color: var(--color-ink); font-family: var(--font-display); font-weight: 650; letter-spacing: -0.025em; line-height: 1.16; text-wrap: balance; }
+h1 { font-size: var(--text-display); }
+h2 { font-size: var(--text-section); }
+h3 { font-size: var(--text-title); }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; }
+button { color: inherit; }
+button:active, a:active, input:active, select:active, textarea:active { opacity: 0.86; }
+img, video, svg { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -15,6 +15,11 @@ services:
       timeout: 3s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit:v1.20.3
+    ports:
+      - "127.0.0.1:8025:8025"
+
   backend:
     build:
       context: .
@@ -28,22 +33,32 @@ services:
       STORAGE_ROOT_DIR: /var/lib/printair/storage
       COOKIE_SECURE: ${COOKIE_SECURE}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-http://localhost:5173}
+      SHOP_QUOTA_BYTES: ${SHOP_QUOTA_BYTES:-1073741824}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-noreply@printair.local}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS_ENABLE: ${MAIL_SMTP_STARTTLS_ENABLE:-false}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       BOOTSTRAP_SHOP_SLUG: ${BOOTSTRAP_SHOP_SLUG}
       BOOTSTRAP_SHOP_NAME: ${BOOTSTRAP_SHOP_NAME}
       BOOTSTRAP_OPERATOR_EMAIL: ${BOOTSTRAP_OPERATOR_EMAIL}
       BOOTSTRAP_OPERATOR_PASSWORD: ${BOOTSTRAP_OPERATOR_PASSWORD}
       RETENTION_HOURS: ${RETENTION_HOURS}
-      SHOP_QUOTA_BYTES: ${SHOP_QUOTA_BYTES}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     volumes:
       - printair-storage:/var/lib/printair/storage
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 15

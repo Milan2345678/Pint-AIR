@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, api } from "./api";
 
 type UploadState = "waiting" | "uploading" | "sent" | "failed";
 type FileStatus = { uploadId: string; file: File; progress: number; state: UploadState; error?: string };
+type ShopProfile = { shopName: string };
 type UploadGrant = {
   uploadId: string;
   url: string | null;
@@ -20,6 +21,10 @@ export default function App() {
     const match = window.location.pathname.match(/^\/shop\/([^/]+)\/?$/);
     return match ? decodeURIComponent(match[1]) : "";
   }, []);
+  const [shopName, setShopName] = useState("");
+  const [shopLoading, setShopLoading] = useState(true);
+  const [shopError, setShopError] = useState("");
+  const [shopRefresh, setShopRefresh] = useState(0);
   const [submissionId] = useState(() => crypto.randomUUID());
   const [name, setName] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<FileStatus[]>([]);
@@ -30,6 +35,27 @@ export default function App() {
   const submitting = useRef(false);
   const complete = submissionCreated && selectedFiles.length > 0
     && selectedFiles.every((entry) => entry.state === "sent");
+
+  useEffect(() => {
+    if (!slug) {
+      setShopLoading(false);
+      return;
+    }
+    let active = true;
+    setShopLoading(true);
+    setShopError("");
+    void api<ShopProfile>(`/api/public/shops/${encodeURIComponent(slug)}`)
+      .then((profile) => {
+        if (active) setShopName(profile.shopName);
+      })
+      .catch(() => {
+        if (active) setShopError("The shop name could not be loaded. Check this QR code before submitting.");
+      })
+      .finally(() => {
+        if (active) setShopLoading(false);
+      });
+    return () => { active = false; };
+  }, [slug, shopRefresh]);
 
   function chooseFiles(fileList: FileList | null) {
     setError("");
@@ -51,6 +77,10 @@ export default function App() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
+    if (shopLoading || shopError || !shopName) {
+      setError("Shop details must load before documents can be submitted.");
+      return;
+    }
     if (!name.trim() || selectedFiles.length === 0) {
       setError("Enter your name and select at least one document.");
       return;
@@ -141,23 +171,32 @@ export default function App() {
     <p>Scan the current QR code at the print shop or check the link with the shop operator.</p></section></main>;
 
   return <main className="page-wrap">
-    <header className="submit-brand"><span className="brand-mark">PA</span><span>Print AIR</span></header>
+    <header className="submit-header">
+      <a className="submit-brand" href="/" aria-label="Print AIR home">
+        <span>Print AIR</span>
+      </a>
+      {shopName && <span className="shop-name">{shopName}</span>}
+    </header>
     {complete ? <section className="card success-card" role="status">
-      <span className="success-icon">✓</span><p className="eyebrow">SUBMISSION COMPLETE</p>
-      <h1>Your documents are on their way.</h1>
-      <p>The shop can now access the submitted files. This page does not provide document tracking.</p>
+      <h1>Documents submitted</h1>
+      <p>{shopName} can now access these files. This page does not provide document tracking.</p>
       <ul className="file-list" aria-label="Submitted documents">
         {selectedFiles.map((entry) => <li key={entry.uploadId}>
           <div className="file-details"><strong>{entry.file.name}</strong>
-            <small>{fileTypeLabel(entry.file)} · {formatBytes(entry.file.size)}</small></div>
+            <small>{fileTypeLabel(entry.file)}, {formatBytes(entry.file.size)}</small></div>
           <span className="sent-label">Submitted</span>
         </li>)}
       </ul>
     </section> : <section className="card">
-      <p className="eyebrow">PRIVATE DOCUMENT SUBMISSION</p>
-      <h1>Send files to the print shop</h1>
-      <p className="intro">Enter your name and choose PDF, DOCX, JPG, or JPEG files. Your phone number is not requested.</p>
-      <form onSubmit={submit}>
+      <h1>{shopName ? `Send files to ${shopName}` : "Send files to the print shop"}</h1>
+      <p className="intro">Add your name and the documents you want printed. Your phone number is not requested.</p>
+      {shopLoading && <p className="shop-state" role="status">Loading shop details…</p>}
+      {shopError && <div className="shop-lookup-error" role="alert">
+        <p>{shopError}</p>
+        <button type="button" className="text-button" disabled={shopLoading}
+          onClick={() => setShopRefresh((value) => value + 1)}>Retry</button>
+      </div>}
+      <form className="submit-form" onSubmit={submit}>
         <label>Your name<input value={name} required maxLength={100} autoComplete="name" disabled={submissionStarted}
           onChange={(event) => setName(event.target.value)} placeholder="Name for the shop operator" /></label>
         <label className="file-picker">Documents
@@ -166,17 +205,17 @@ export default function App() {
               chooseFiles(event.target.files);
               event.currentTarget.value = "";
             }} />
-          <span className="picker-box"><span className="upload-icon">↑</span><strong>Add documents</strong>
+          <span className="picker-box"><strong>Add documents</strong>
             <small>PDF, DOCX, JPG, or JPEG</small></span>
         </label>
         {selectedFiles.length > 0 && <ul className="file-list" aria-label="Selected documents">
           {selectedFiles.map((entry) => <li key={entry.uploadId}>
             <div className="file-details"><strong>{entry.file.name}</strong>
-              <small>{fileTypeLabel(entry.file)} · {formatBytes(entry.file.size)}</small>
+              <small>{fileTypeLabel(entry.file)}, {formatBytes(entry.file.size)}</small>
               {entry.error && <small className="file-error" role="alert">{entry.error}</small>}
             </div>
             {entry.state === "uploading" ? <div className="progress-wrap" aria-label={`Uploading ${entry.file.name}`}>
-              <div className="progress-track"><span style={{ width: `${entry.progress}%` }} /></div><small>{entry.progress}%</small>
+              <div className="progress-track"><span style={{ transform: `scaleX(${entry.progress / 100})` }} /></div><small>{entry.progress}%</small>
             </div> : entry.state === "sent" ? <span className="sent-label">Submitted</span>
               : entry.state === "failed" ? <button type="button" className="retry-button" disabled={busy}
                 onClick={() => void retry(entry.uploadId)}>Retry</button> : <span className="waiting-label">Ready</span>}
@@ -185,13 +224,14 @@ export default function App() {
           </li>)}
         </ul>}
         {error && <p className="error-message" role="alert">{error}</p>}
-        {!submissionCreated && <button className="submit-button" disabled={busy || selectedFiles.length === 0}>
+        {!submissionCreated && <button className="submit-button" type="submit"
+          disabled={busy || shopLoading || Boolean(shopError) || !shopName || selectedFiles.length === 0}>
           {busy ? "Preparing submission…" : submissionStarted ? "Retry submission" : "Submit documents"}
         </button>}
       </form>
-      <div className="privacy-note"><span aria-hidden="true">◆</span><p>Files are sent to this shop's private storage. Print AIR does not ask for your phone number or create a tracking page.</p></div>
+      <div className="privacy-note"><p>Files are sent to this shop’s private storage. Print AIR does not ask for your phone number or create a tracking page.</p></div>
     </section>}
-    <footer className="footer">Print AIR · Private document submission</footer>
+    <footer className="footer">Print AIR, private document submission.</footer>
   </main>;
 }
 

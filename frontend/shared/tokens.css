@@ -1,0 +1,57 @@
+/* Hallmark · redesign: full · scope: app · theme: Furrow (deal 3/3, seed print-shop-operator-manages-ed27·e2cb06ed·2026-11-17·r0), adapted to Print AIR teal
+ * signature: document queue with live preview · state: loading, empty, error, ready
+ * axes: light/system-sans/warm · posture: restrained · contrast: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: H, keep a single queue and preview without adding status widgets */
+/* Hallmark · waive 26b · token-only stylesheet · active controls are styled in base.css. */
+:root {
+  color-scheme: light;
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.75rem;
+  --text-display: 1.75rem;
+  --text-section: 1.25rem;
+  --text-title: 1rem;
+  --text-lead: 1rem;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --container: 1440px;
+  --gutter: 24px;
+  --z-dropdown: 100;
+  --z-modal: 400;
+  --z-toast: 500;
+  --color-paper: oklch(98.5% 0.004 170);
+  --color-paper-2: oklch(99.7% 0.002 170);
+  --color-paper-3: oklch(95% 0.008 170);
+  --color-ink: oklch(22% 0.012 250);
+  --color-ink-2: oklch(32% 0.012 250);
+  --color-muted: oklch(43% 0.012 250);
+  --color-rule: oklch(88% 0.006 170);
+  --color-field-edge: oklch(66% 0.012 250);
+  --color-accent: oklch(48% 0.095 176);
+  --color-accent-ink: oklch(99% 0.002 176);
+  --color-accent-soft: oklch(93% 0.03 176);
+  --color-focus: oklch(46% 0.12 176);
+  --color-success: oklch(42% 0.09 150);
+  --color-success-soft: oklch(93% 0.025 150);
+  --color-error: oklch(48% 0.15 26);
+  --color-error-soft: oklch(95% 0.03 27);
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --radius-panel: 10px;
+  --radius-control: 6px;
+  --radius-pill: 999px;
+  --shadow-panel: 0 1px 3px oklch(22% 0.012 250 / 0.06);
+}

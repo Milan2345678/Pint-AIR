@@ -34,6 +34,7 @@ class SubmissionServiceTest {
     void setUp() {
         var environment = new MockEnvironment();
         when(shop.getId()).thenReturn(UUID.randomUUID());
+        when(shop.getSlug()).thenReturn("cafe");
         when(shops.findLockedBySlug("cafe")).thenReturn(Optional.of(shop));
         when(submissions.save(any(Submission.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(intents.save(any(UploadIntent.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -44,7 +45,7 @@ class SubmissionServiceTest {
     }
 
     @Test
-    void createsOneSubmissionForMixedFilesWithoutPerFileOrCountCap() {
+    void createsOneSubmissionForMixedFilesWithinTheShopQuota() {
         var submissionId = UUID.randomUUID();
         var files = List.of(
                 file("large.pdf", "application/pdf", 26L * 1024 * 1024),
@@ -52,7 +53,8 @@ class SubmissionServiceTest {
                 file("photo.jpg", "image/jpeg", 300),
                 file("certificate.jpeg", "image/jpeg", 400),
                 file("another.pdf", "application/pdf", 500),
-                file("extra.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 600));
+                file("extra.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        900L * 1024 * 1024));
 
         var response = service.create("cafe", new UploadRequest(submissionId, " Student ", files), "127.0.0.1");
 
@@ -63,6 +65,22 @@ class SubmissionServiceTest {
         verify(submissions).save(argThat(submission -> submission.getId().equals(submissionId)
                 && submission.getCustomerName().equals("Student")));
         verify(intents, times(6)).save(any(UploadIntent.class));
+    }
+
+    @Test
+    void rejectsReservationsThatWouldExceedActiveAndPendingShopStorage() {
+        var environment = new MockEnvironment().withProperty("printair.shop-quota-bytes", "100");
+        when(documents.activeBytes(any(), any(), any())).thenReturn(40L);
+        when(intents.sumPendingBytes(any(), any())).thenReturn(50L);
+        service = new SubmissionService(shops, submissions, intents, documents, storage,
+                new RateLimitService(), environment);
+        var request = new UploadRequest(UUID.randomUUID(), "Student",
+                List.of(file("report.pdf", "application/pdf", 11)));
+
+        assertThatThrownBy(() -> service.create("cafe", request, "127.0.0.1"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        verify(submissions, never()).save(any());
     }
 
     @Test
@@ -103,6 +121,7 @@ class SubmissionServiceTest {
         var intent = new UploadIntent(submission, shop, "photo.jpg", "image/jpeg", 100,
                 "shops/cafe/failed.jpg", Instant.now().plusSeconds(300));
         intent.setState(UploadIntent.State.FAILED);
+        when(intents.findById(intent.getId())).thenReturn(Optional.of(intent));
         when(intents.findLockedById(intent.getId())).thenReturn(Optional.of(intent));
         when(storage.exists("shops/cafe/failed.jpg")).thenReturn(false);
         when(storage.presignPut(any(), any(), any(), anyLong(), any())).thenReturn("http://minio.test/retry");

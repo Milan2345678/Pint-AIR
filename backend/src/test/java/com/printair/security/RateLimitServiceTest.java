@@ -14,4 +14,14 @@ class RateLimitServiceTest {
         assertThat(limiter.allow("ip:127.0.0.1", 2, 60_000)).isFalse();
         assertThat(limiter.allow("ip:127.0.0.2", 2, 60_000)).isTrue();
     }
+
+    @Test
+    void allowsTenLoginAttemptsAndRejectsTheEleventhInTheSameMinute() {
+        var limiter = new RateLimitService();
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            assertThat(limiter.allow("login:127.0.0.1", 10, 60_000)).isTrue();
+        }
+        assertThat(limiter.allow("login:127.0.0.1", 10, 60_000)).isFalse();
+    }
 }

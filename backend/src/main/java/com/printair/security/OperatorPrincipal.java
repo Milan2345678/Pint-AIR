@@ -26,6 +26,11 @@ public record OperatorPrincipal(UUID operatorId, UUID shopId, String email, Stri
     }
 
     @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    @Override
     public boolean isAccountNonExpired() { return true; }
 
     @Override
